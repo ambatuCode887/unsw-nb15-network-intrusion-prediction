@@ -1,0 +1,165 @@
+library(tidyverse)
+library(ggplot2)
+library(forcats)
+library(VIM)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(corrplot)
+
+setwd("C:/Users/User/Downloads/PFDA")
+getwd()
+
+# Import in .csv file
+df <- read.csv("UNSW-NB15_uncleaned.csv", header = TRUE, sep = ",")
+df
+
+#quick overview 
+head(df)
+tail(df)
+str(df)
+dim(df)
+summary(df)
+colnames(df)
+view(df)
+
+#Data Preparation
+colnames(df) <- c(
+  "ID", "Duration", "Protocol", "Service", "State", "SrcPackets", "DstPackets", 
+  "SrcBytes", "DstBytes", "Rate", "SrcTTL", "DstTTL", "SrcLoad", "DstLoad", 
+  "SrcLoss", "DstLoss", "SrcIntPkt", "DstIntPkt", "SrcJit", "DstJit", 
+  "SrcWin", "SrcTCPBase", "DstTCPBase", "DstWin", "TCPRTT", "SynAck", 
+  "AckDat", "SrcMeanPktSize", "DstMeanPktSize", "TransDepth", "RespBodyLen", 
+  "CtSrvSrc", "CtStateTTL", "CtDstLTM", "CtSrcDportLTM", "CtDstSportLTM", 
+  "CtDstSrcLTM", "IsFTPLogin", "CtFTPCmd", "CtFlwHTTPMthd", "CtSrcLTM", 
+  "CtSrvDst", "IsSMIPsPorts", "AttackCategory", "Label"
+)
+colnames(df)
+##############################
+#checking for duplication
+duplicate_row <- duplicated(df)
+number_of_duplicate <- sum(duplicate_row)
+print(paste("Number of duplicate rows: ", number_of_duplicate))
+nrow(df)
+##############################
+#check for invalid characters for my IV before conversion
+class(df$SrcBytes)
+checking_invalid_symbols <- df$SrcBytes[!grepl("^[0-9.]+$", df$SrcBytes)]
+#count the number of rows that are invalid
+count_invalid = length(checking_invalid_symbols)
+(count_invalid / nrow(df)) * 100
+head(unique(checking_invalid_symbols), 20)
+print(colSums(is.na(df)))
+sum(is.na(df))
+
+str(df$Protocol)
+table(df$Protocol, useNA = "ifany")
+na_count_protocol <- sum(is.na(df$Protocol))
+(na_count_protocol / nrow(df)) * 100
+#clean invalid data value eg 1_ \\? _ and make empty value to NA
+df <- df %>% mutate(across(everything(), ~ {
+  x <- as.character(.x)
+  x <- gsub("\\?", "", x)
+  x <- gsub("_", "", x)
+  x <- gsub(" ", "", x)
+  x[x == ""] <- NA
+  x[x == "NA"] <- NA
+  return(x)
+}))
+#check the entire dataset whether the cleaning success or not
+sapply(df[, sapply(df, function(x) is.character(x) | is.factor(x))], 
+       function(x) unique(x))
+##############################
+#Ensure Label and AttackCategory align
+df$AttackCategory[df$Label == "0" & is.na(df$AttackCategory)] <- "Normal"
+df$Label[is.na(df$Label) & df$AttackCategory == "Normal"] <- "0"
+df$Label[is.na(df$Label) & df$AttackCategory != "Normal" & !is.na(df$AttackCategory)] <- "1"
+
+df$AttackCategory[df$Label == "1" & is.na(df$AttackCategory)] <- "Unclassified"
+#drop rows in Label
+df_clean <- df %>% filter(!is.na(Label))
+dim(df_clean)
+df <- df_clean
+dim(df)
+view(df)
+##############################
+#summary of the cleaned data in attack category
+attack_summary <- df %>% 
+  count(AttackCategory) %>% 
+  arrange(desc(n))
+print("Attack Category Summary:")
+print(attack_summary)
+#checking whether is there imbalancing
+table(df$Label)
+prop.table(table(df$Label))
+##############################
+#convert the variable to the proper types eg Factor and Numerical
+categorical_cols <- c("Protocol", "Service", "State", "AttackCategory", "Label")
+#Convert these to factors directly
+df[categorical_cols] <- lapply(df[categorical_cols], as.factor)
+str(df)
+
+numerical_cols <- setdiff(names(df), categorical_cols)
+df <- df %>%
+  mutate(across(all_of(numerical_cols), as.numeric))
+str(df)
+#checking how many NA are in each column before doing the imputation
+colSums(is.na(df))
+##############################
+#hot deck imputation method
+set.seed(123) #this is for the reproducibility
+df <- hotdeck(df, ord_var = "Label")
+#checking if there is still any NA exist
+print(colSums(is.na(df)))
+##############################
+#outlier analysis
+#calculate outlier bounds for SrcBytes
+Q1 <- quantile(df$SrcBytes, 0.25, na.rm = TRUE)
+Q3 <- quantile(df$SrcBytes, 0.75, na.rm = TRUE)
+IQR <- Q3 - Q1
+upper_bound <- Q3 + 1.5 * IQR
+lower_bound <- Q1 - 1.5 * IQR
+
+real_outliers <- df %>%
+  filter(!is.na(SrcBytes) & SrcBytes > upper_bound)
+total_outliers <- nrow(real_outliers)
+per_outliers <- (total_outliers / nrow(df)) * 100
+
+cat("Total outlier: ", total_outliers, "\n")
+cat("Percentage of outlier: ", round(per_outliers))
+
+#checking whether are they attacks or not.
+attack_count <- sum(real_outliers$Label == "1" | real_outliers$Label == 1, na.rm = TRUE)
+attack_pec <- (attack_count / total_outliers) * 100
+
+cat("Attack percentage among outliers: ", round(attack_pec, 2), "%\n")
+
+#summary statistic
+summary(df$SrcBytes)
+#log transform to reduce skewness instead of capping
+df$SrcBytes_log <- log1p(df$SrcBytes)
+print(summary(df$SrcBytes_log))
+
+#compare attack vs normal in outliers
+if(total_outliers > 0){
+  outlier_breakdown <- real_outliers %>%
+    group_by(Label) %>%
+    summarise(
+      Count = n(),
+      Avg_SrcBytes = mean(SrcBytes),
+      Med_SrcBytes = median(SrcBytes)
+    )
+  print(outlier_breakdown)
+}
+#check overall
+summary(df)
+glimpse(df)
+view(df)
+str(df)
+
+sum(is.na(df)) #Should return 0
+any(duplicated(df)) #Should return FALSE
+
+write.csv(df, "cleaned_data.csv", row.names = FALSE)
+#======================================================
