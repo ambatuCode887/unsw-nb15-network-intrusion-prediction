@@ -8,7 +8,7 @@ library(rpart.plot)
 library(randomForest)
 library(corrplot)
 
-setwd("C:/Users/User/Downloads/PFDA")
+setwd("")
 getwd()
 
 # Import in .csv file
@@ -163,3 +163,4 @@ any(duplicated(df)) #Should return FALSE
 
 write.csv(df, "cleaned_data.csv", row.names = FALSE)
 #======================================================
+
