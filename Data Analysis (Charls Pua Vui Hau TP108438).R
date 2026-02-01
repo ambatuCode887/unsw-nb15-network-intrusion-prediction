@@ -8,7 +8,7 @@ library(rpart.plot)
 library(randomForest)
 library(corrplot)
 
-setwd("C:/Users/User/Downloads/PFDA")
+setwd("") #here you put your file directory eg /yourName/name/download/datasets....
 getwd()
 
 df <- read.csv("cleaned_data.csv", header = TRUE, sep = ",")
@@ -252,3 +252,4 @@ corrplot(cor_subset,
          col = colorRampPalette(c("blue", "white", "red"))(200),
          mar = c(0, 0, 2, 0),
          title = "Top 18 Most Correlated Network Traffic Features")
+
