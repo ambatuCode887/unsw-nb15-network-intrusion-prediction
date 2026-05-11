@@ -5,7 +5,7 @@ This project applies R programming and machine learning techniques to analyze an
 The dataset used in this project is not included in this repository because it was prepared and distributed for academic coursework by an authorized instructor. Due to unclear redistribution permissions, the dataset is not publicly shared. However, the dataset remains stored locally on the author's device for academic use.
 
 To find the original datasets please go to : 
-https://research.unsw.edu.au/projects/unsw-nb15-dataset?utm_source=chatgpt.com
+https://research.unsw.edu.au/projects/unsw-nb15-dataset
 
 #Instruction
 setwd("") #depending how you wanna import the dataset into your programs, you can remove these 2 line
